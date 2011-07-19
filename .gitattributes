@@ -1,0 +1,5 @@
+* text=auto !eol
+src/simpleDbhelper.py -text
+src/backupSimpleDb_0.0.py -text
+/.project -text
+/.pydevproject -text
