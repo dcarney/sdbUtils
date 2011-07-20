@@ -1,4 +1,4 @@
-import boto, threading, Queue, sys, traceback, os, argparse
+import boto, threading, Queue, sys, traceback, os, argparse, datetime
 from boto.s3.key import Key
 desc = """
 Created By: Chris Hayes
@@ -13,6 +13,12 @@ parser.add_argument('-s', action="store", dest="secretKey", help="AWS Secret Key
 parser.add_argument('-b', action="store", dest="bucket", help="name of bucket to write to")
 arguments = parser.parse_args()
 
+def saveFileToS3(bucketname, domainname, filename, s3keys):
+    s3conn = boto.connect_s3(s3keys.ACCESSKEY, s3keys.SECRETKEY)
+    bucket = s3conn.get_bucket(bucketname)
+    k = Key(bucket)
+    k.key = "{0}/{1}.xml".format(datetime.date.today().strftime("%Y%m%d"),domainname)
+    k.set_contents_from_filename(filename, cb=percent_cb, replace=True)
 
 def percent_cb(complete, total):
     sys.stdout.write("{0}.{1}\n".format(complete,total))
@@ -50,6 +56,57 @@ def backupDomain(bucketname,domainKeys,bucketKeys, threadcount = 1):
         
         queue.join()
 
+def restoreValue(s3bucketConnection, sdbDomainConnection, guid):
+    #read val
+    #write val
+    print 'not implemented'
+
+def findBUVal(bucket,budir,domainname,val):
+    key = bucket.get_key("{0}/{1}.xml".format(budir,domainname))
+    node = re.compile("<item .*{0}.*/>".format(val))
+    point = 0
+    x =""
+    vals = []
+    while point < key.size:
+        x += key.read(key.BufferSize)
+        vals += node.findall(x)
+        x = x.splitlines()[len(x.splitlines())-1]
+        point += key.BufferSize
+    return vals
+
+def convertNodeToDict(node):
+    vals = xml.parseString(node, parser=None)
+    
+    return 'not implemented'
+
+def restoreVals(vals,domain):
+    for v in vals:
+        print 'not implemented'
+
+def findDomainVal(domain, val):
+    return 'not implemented'
+
+def writeDomainVal(val, domain):
+    domain.new_item()
+    print 'not implemented'
+
+def restoreDomain(bucketname,budir,domainKeys,bucketKeys, domainname):
+    s3conn = boto.connect_s3(bucketKeys.ACCESSKEY, bucketKeys.SECRETKEY)
+    sdbconn = boto.connect_sdb(domainKeys.ACCESSKEY, domainKeys.SECRETKEY)
+    bucket = s3conn.get_bucket(bucketname)
+    domain = sdbconn.get_domain(domainname)
+    #keys = bucket.list(budir)
+    key = bucket.get_key("{0}/{1}.xml".format(budir,domainname))
+    point = 0
+    while point < key.size:
+        x = key.read(key.BufferSize)
+        for l in x.splitlines():
+            print l
+        #print x[:5]
+        
+        point += key.BufferSize
+
+        
 class environmentKeys:
     def __init__(self,accessKey,secretKey):
         self.ACCESSKEY = accessKey
@@ -65,12 +122,15 @@ class threadSDBArchive(threading.Thread):
         self.S3CONNECTION = None
         self.SDBCONNECTION = None
         self.DOMAIN = None
+        self.DOMAINNAME = ""
+        self.FILENAME = ""
                 
     def run(self):
         while True:
-            domain = self.queue.get()
+            self.DOMAINNAME = self.queue.get()
             self.connect()
-            self.loaddomaintos3(domain)
+            self.createStagingFile()
+            self.saveFileToS3()
             self.queue.task_done()
             
     def connect(self):
@@ -79,20 +139,30 @@ class threadSDBArchive(threading.Thread):
             self.BUCKET = self.S3CONNECTION.get_bucket(self.BUCKETNAME)
         if self.SDBCONNECTION == None:
             self.SDBCONNECTION = boto.connect_sdb(self.SDBKEYS.ACCESSKEY, self.SDBKEYS.SECRETKEY)
-              
-    def loaddomaintos3(self, domainname):
-        domain = self.SDBCONNECTION.get_domain(domainname)
-        for itm in domain:
-            k = Key(self.BUCKET)
-            k.key = "{0}/{1}/{2}".format("simpledbBU",domainname,itm.name)
-            txt = ""
-            for k,v in itm:
-                if isinstance(v,basestring):
-                    txt += "|{0}=\"{1}\"".format(k,v)
-                else:
-                    for val in v:
-                        txt += "|{0}=\"{1}\"".format(k,val)
-            k.set_contents_from_string(txt.lstrip('|'))  
+    
+    def saveFileToS3(self):
+        k = Key(self.BUCKET)
+        k.key = "{0}/{1}.xml".format(datetime.date.today().strftime("%Y%m%d"),self.DOMAINNAME)
+        k.set_contents_from_filename(self.FILENAME, cb=percent_cb, replace=True)
+    
+    def createStagingFile(self):
+        self.DOMAIN = self.SDBCONNECTION.get_domain(self.DOMAINNAME)
+        self.FILENAME = self.DOMAINNAME + ".xml"
+        with open(self.FILENAME, "w") as  f:
+            f.write( "<?xml version=\"1.0\" ?>" )
+            f.write( "<items>" )
+            for itm in self.DOMAIN:
+                buffer=[]
+                buffer.append('itemName="{0}"'.format(itm.name))
+                for k,v in itm.items():
+                    if isinstance(v,basestring):
+                        txt= '{0}="{1}"'.format(k,unicode(v).encode('utf8'))
+                    else:
+                        for i, val in enumerate(v):
+                            txt= '{0}::{1}="{2}"'.format(k,i,unicode(val).encode('utf8'))
+                    buffer.append(txt)
+                f.write( "  <item {0} />\n".format(" ".join(buffer)))
+            f.write("</items>")
     
 def domainQueue(keys):
     queue = Queue.Queue()
@@ -101,19 +171,9 @@ def domainQueue(keys):
     for d in domains:
         queue.put(d.name)
     return queue
-#class domainQueue(Queue.Queue):
-#    def __init__(self,sdbkeys):
-#        super(domainQueue,self).__init__()
-#        self.SDBKEYS = sdbkeys
-#
-#    def initQueue(self):
-#        conn = boto.connect_sdb(self.SDBKEYS.ACCESSKEY, self.SDBKEYS.SECRETKEY)
-#        domains = conn.get_all_domains()
-#        for d in domains:
-#            self.put(d.name)
 
 def main():
     envkeys = environmentKeys(arguments.accessKey,arguments.secretKey)
-    backupDomain(arguments.bucket,envkeys,envkeys)
+    backupDomain(arguments.bucket,envkeys,envkeys, 5)
 
 if __name__ == "__main__":main()
