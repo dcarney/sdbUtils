@@ -67,9 +67,9 @@ def main():
         parser.add_argument('secretKey', metavar="S", help="AWS Secret Key")
         parser.add_argument('bucket', metavar="B", help="The S3 bucket to write to")
         parser.add_argument('prefix', metavar="P", help="The S3 prefix to write to. Ex: some/crazy/prefix")
-        parser.add_argument('--name', 
-                            dest='domain_name',
-                            help='The name of the domain to backup.  If none is given, all domains ' + 
+        parser.add_argument('--names', 
+                            dest='domain_names',
+                            help='A comma-seperated list of domain names to backup. If none is given, all domains ' + 
                                  'that are accessible using the given keys are backed up.')
         arguments = parser.parse_args()
         
@@ -87,11 +87,13 @@ def main():
         sdb_conn = boto.connect_sdb(arguments.accessKey, arguments.secretKey)
         s3_conn = boto.connect_s3(arguments.accessKey, arguments.secretKey)
         
-        if arguments.domain_name is not None:
+        if arguments.domain_names is not None:
             try:
-                domains = [ sdb_conn.get_domain(arguments.domain_name, validate=True) ]
-            except boto.exception.SDBResponseError:
-                print "No domain named ", arguments.domain_name, "exists."
+                # Parse the domain names and validate that each one exists
+                domain_names = [x.strip() for x in arguments.domain_names.split(',')]
+                domains = [sdb_conn.get_domain(domain_name, validate=True) for domain_name in domain_names]
+            except boto.exception.SDBResponseError as sdb_ex:
+                print "One or more of the supplied domain names do not exist."
                 sys.exit(-1)
         else:
             # If no domain was given, do all the available domains
