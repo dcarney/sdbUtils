@@ -4,7 +4,6 @@
 __author__ = "dcarney / http://github.com/dcarney"
 __email__ = "dcarney@gmail.com"
 
-import argparse
 import codecs
 import cPickle as pickle
 from datetime import datetime
@@ -14,17 +13,21 @@ import sys
 from time import strftime
 import traceback
 
+import argparse
 import boto
 from boto.s3.key import Key
 
 def format_bytes(bytes):
     """Formats a number of bytes into a string that's more human-readable.
        Ex. format_bytes(124023) => 121kb
+           format_bytes(6920610) => 6.6Mb
     """
-    if (bytes >= 1024):
-        return str(int(math.floor(bytes / 1024))) + "kb"
+    if (bytes >= 1048576):
+        return "{0:0.1f}Mb".format(bytes / 1048576.0)
+    elif (bytes >= 1024):
+        return "{0}kb".format(int(math.floor(bytes / 1024)))
     else:
-        return str(bytes) + "b"
+        return "{0}b".format(bytes)
 
 def s3_progress_callback(bytes_complete, bytes_total):
     """Callback for displaying S3 upload progress"""
@@ -35,21 +38,27 @@ def s3_progress_callback(bytes_complete, bytes_total):
 def save_to_s3(s3_conn, s3_bucket, s3_prefix, filename):
     """Saves a local file <filename> to S3, using the supplied s3 connection,
        bucket, and prefix"""
-    bucket = s3_conn.get_bucket(s3_bucket)
-    k = Key(bucket)
-    k.key = "{0}{1}".format(s3_prefix if s3_prefix.endswith('/') else s3_prefix + '/', filename)
-    k.set_contents_from_filename(filename, cb=s3_progress_callback, num_cb=10, replace=True)
+    try:
+        bucket = s3_conn.get_bucket(s3_bucket)
+        k = Key(bucket)
+        k.key = "{0}{1}".format(s3_prefix if s3_prefix.endswith('/') else s3_prefix + '/', filename)
+        k.set_contents_from_filename(filename, cb=s3_progress_callback, num_cb=10, replace=True)
+    except boto.exception.S3ResponseError as s3_ex:
+        print "The s3 bucket", s3_bucket, "does not exist."
+        sys.exit(-1)
 
-def pickle_domain(sdb_items, domain_name):
+def pickle_domain(domain):
     """Pickles a set of boto SimpleDB items, using the pickle protocol #2 for size,
     and speed, returning the filename of the resulting pickle."""
+    # We can't pickle the boto Item objects directly, but we can build up a dict
+    # containing all the relevant items and their attributes, extracted from the boto Item
     item_dict = {}
-    for item in sdb_items:
-        for k in item:
-            item_dict[item.name] = { k : item[k] }
-    
+    for item in domain:
+        #item_dict[item.name] = dict(domain.get_attributes(item.name))
+        item_dict[item.name] = dict(item)
+        
     # build a sensible, UTC-timestamped filename, eg: SomeDomain_2011-07-20T22_15_27_839618
-    filename = (domain_name + '_' + datetime.isoformat(datetime.utcnow())).replace(':', '_').replace('.', '_')
+    filename = (domain.name + '_' + datetime.isoformat(datetime.utcnow())).replace(':', '_').replace('.', '_')
     
     with codecs.open(filename, 'wb') as f:
         # protocols > 0 write binary
@@ -74,11 +83,11 @@ def main():
         arguments = parser.parse_args()
         
         # some simple input cleansing
-        s3_prefix = arguments.prefix
+        s3_prefix = arguments.prefix.strip()
         if (not s3_prefix.endswith('/')):
             s3_prefix = s3_prefix + '/'
             
-        s3_bucket = arguments.bucket.replace('/', '')      
+        s3_bucket = arguments.bucket.replace('/', '').strip()      
             
         # setup Unicode support for stdout and stderr
         sys.stderr = codecs.getwriter('utf8')(sys.stderr)
@@ -101,7 +110,7 @@ def main():
         
         for domain in domains:
             print "\nReading", domain.name, "..."
-            filename = pickle_domain(domain, domain.name)
+            filename = pickle_domain(domain)
             print "Saving", domain.name, "to S3..."
             save_to_s3(s3_conn,
                        s3_bucket,
