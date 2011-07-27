@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""sdb2s3.py: Simple Python script for backing up/saving SimpleDB domains to S3"""
+"""sdb_to_s3.py: Simple Python script for backing up/saving SimpleDB domains to S3"""
 __author__ = "dcarney / http://github.com/dcarney"
 __email__ = "dcarney@gmail.com"
 
