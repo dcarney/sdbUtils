@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""s32sdb.py: Simple Python script for restoring SimpleDB domains from S3 backups"""
+"""s3_to_sdb.py: Simple Python script for restoring SimpleDB domains from S3 backups"""
 __author__ = "dcarney / http://github.com/dcarney"
 __email__ = "dcarney@gmail.com"
 
