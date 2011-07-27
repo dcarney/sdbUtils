@@ -72,10 +72,10 @@ def main():
     try:
         # Command-line argument/option parsing
         parser = argparse.ArgumentParser(description="Backup a SimpleDB domain to S3")
-        parser.add_argument('accessKey', metavar="A", help="AWS Access Key")
-        parser.add_argument('secretKey', metavar="S", help="AWS Secret Key")
-        parser.add_argument('bucket', metavar="B", help="The S3 bucket to write to")
-        parser.add_argument('prefix', metavar="P", help="The S3 prefix to write to. Ex: some/crazy/prefix")
+        parser.add_argument('accessKey', help="AWS Access Key")
+        parser.add_argument('secretKey', help="AWS Secret Key")
+        parser.add_argument('bucket', help="The S3 bucket to write to")
+        parser.add_argument('prefix', help="The S3 prefix to write to. Ex: some/crazy/prefix")
         parser.add_argument('--names', 
                             dest='domain_names',
                             help='A comma-seperated list of domain names to backup. If none is given, all domains ' + 

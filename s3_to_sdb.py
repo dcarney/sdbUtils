@@ -80,10 +80,10 @@ def main():
     try:
         # Command-line argument/option parsing
         parser = argparse.ArgumentParser(description="Restore a SimpleDB domain from a backup on S3")
-        parser.add_argument('accessKey', metavar="A", help="AWS Access Key")
-        parser.add_argument('secretKey', metavar="S", help="AWS Secret Key")
-        parser.add_argument('bucket', metavar="B", help="The S3 bucket to read from")
-        parser.add_argument('key', metavar="K", help="The S3 key decribing the file to read from. Ex: foo/bar/Foobar_20110707T134911")
+        parser.add_argument('accessKey', help="AWS Access Key")
+        parser.add_argument('secretKey', help="AWS Secret Key")
+        parser.add_argument('bucket', help="The S3 bucket to read from")
+        parser.add_argument('key', help="The S3 key decribing the file to read from. Ex: foo/bar/Foobar_20110707T134911")
         parser.add_argument('domain_name', help='A SimpleDB domain name to restore.')
         arguments = parser.parse_args()
         
