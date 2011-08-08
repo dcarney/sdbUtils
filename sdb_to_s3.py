@@ -34,6 +34,11 @@ def s3_progress_callback(bytes_complete, bytes_total):
     sys.stdout.write("{0} of {1} transferred\n".format(format_bytes(bytes_complete),
                                                        format_bytes(bytes_total)))
     sys.stdout.flush()
+    
+def sdb_progress_callback(items_read, items_total):
+    """Callback for displaying SDB read progress"""
+    sys.stdout.write("{0} of {1} items read\n".format(items_read, items_total))
+    sys.stdout.flush()
 
 def save_to_s3(s3_conn, s3_bucket, s3_prefix, filename):
     """Saves a local file <filename> to S3, using the supplied s3 connection,
@@ -53,9 +58,17 @@ def pickle_domain(domain):
     # We can't pickle the boto Item objects directly, but we can build up a dict
     # containing all the relevant items and their attributes, extracted from the boto Item
     item_dict = {}
+    
+    item_count = domain.get_metadata().item_count 
+    ten_percent = int(math.floor(item_count / 10))
+    i = 0
     for item in domain:
-        #item_dict[item.name] = dict(domain.get_attributes(item.name))
+        i = i + 1
         item_dict[item.name] = dict(item)
+        if (i % ten_percent == 0):
+            sdb_progress_callback(i, item_count)
+    
+    sdb_progress_callback(i, item_count)
         
     # build a sensible, UTC-timestamped filename, eg: SomeDomain_2011-07-20T22_15_27_839618
     filename = (domain.name + '_' + datetime.isoformat(datetime.utcnow())).replace(':', '_').replace('.', '_')
